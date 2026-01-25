@@ -2,3 +2,16 @@ backend/venv/
 backend/__pycache__/
 frontend/node_modules/
 .env
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# Database
+*.db
+
+# Node
+node_modules/
+
+# Environment
+.env
