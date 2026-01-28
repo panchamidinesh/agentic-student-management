@@ -2,13 +2,14 @@ from typing import TypedDict
 from langgraph.graph import StateGraph
 
 
-
 class StudentState(TypedDict):
     attendance: float
     grade: float
     risk: str
     action: str
     explanation: str
+    intervention: str   # NEW
+
 
 
 # 2. Define a node (function)
@@ -56,6 +57,30 @@ def high_risk_agent(state: StudentState) -> StudentState:
     return state
 
 
+def intervention_agent(state: StudentState) -> StudentState:
+    risk = state["risk"]
+
+    if risk == "HIGH":
+        state["intervention"] = (
+            "Immediate counseling, subject-specific remedial classes, "
+            "and parent–faculty meeting required."
+        )
+    elif risk == "MEDIUM":
+        state["intervention"] = (
+            "Enroll in mentoring program and monitor performance weekly."
+        )
+    else:
+        state["intervention"] = (
+            "No intervention required. Encourage continued consistency."
+        )
+
+    return state
+
+
+
+
+
+
 def route_by_risk(state: StudentState) -> str: #This function decides which agent to call next.
     return state["risk"]
 
@@ -65,6 +90,9 @@ graph.add_node("analyze_risk", analyze_risk)
 graph.add_node("low_risk_agent", low_risk_agent)
 graph.add_node("medium_risk_agent", medium_risk_agent)
 graph.add_node("high_risk_agent", high_risk_agent)
+graph.add_node("intervention_agent", intervention_agent)
+# graph.add_node("priority_agent", intervention_priority_agent)
+
 
 graph.set_entry_point("analyze_risk")
 
@@ -78,10 +106,10 @@ graph.add_conditional_edges(
     }
 )
 
-graph.set_finish_point("low_risk_agent")
-graph.set_finish_point("medium_risk_agent")
-graph.set_finish_point("high_risk_agent")
+graph.add_edge("low_risk_agent", "intervention_agent")
+graph.add_edge("medium_risk_agent", "intervention_agent")
+graph.add_edge("high_risk_agent", "intervention_agent")
+
+graph.set_finish_point("intervention_agent")
 
 student_risk_graph = graph.compile()
-
-

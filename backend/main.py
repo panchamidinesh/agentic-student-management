@@ -173,6 +173,19 @@ from typing import List
 from models.student import Student
 from graph.student_risk_graph import student_risk_graph
 from db.database import init_db, get_connection
+from pydantic import BaseModel
+
+from models.subject import Subject
+from typing import List
+
+
+
+
+FACULTY_EMAIL = "123"
+FACULTY_PASSWORD = "123"
+
+
+
 
 app = FastAPI()
 init_db()
@@ -184,6 +197,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
 
 # -------------------- STUDENTS --------------------
 
@@ -276,7 +295,9 @@ def analyze_student(student_id: int):
         "risk": result["risk"],
         "action": result["action"],
         "explanation": result["explanation"],
+        "intervention": result["intervention"]  # NEW
     }
+
 
 # -------------------- DECISION HISTORY --------------------
 
@@ -307,3 +328,131 @@ def get_student_decisions(student_id: int):
         }
         for row in rows
     ]
+#-------LOGIN----------------
+@app.post("/login")
+def login(credentials: LoginRequest):
+    if (
+        credentials.email == FACULTY_EMAIL
+        and credentials.password == FACULTY_PASSWORD
+    ):
+        return {
+            "success": True,
+            "role": "faculty"
+        }
+
+    return {
+        "success": False,
+        "message": "Invalid email or password"
+    }
+
+
+#-------------------UPDATE----------
+@app.put("/students/{student_id}")
+def update_student(student_id: int, student: Student):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        UPDATE students
+        SET name = ?, attendance = ?, grade = ?
+        WHERE id = ?
+        """,
+        (student.name, student.attendance, student.grade, student_id)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "Student updated",
+        "student_id": student_id
+    }
+
+
+#------------DELETE----------
+
+@app.delete("/students/{student_id}")
+def delete_student(student_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "DELETE FROM students WHERE id = ?",
+        (student_id,)
+    )
+
+    conn.commit()
+    conn.close()
+
+    return {
+        "status": "Student deleted",
+        "student_id": student_id
+    }
+
+#-----------fetch students---------------
+def get_student_subjects(student_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        """
+        SELECT subject_name, attendance, grade
+        FROM subjects
+        WHERE student_id = ?
+        """,
+        (student_id,)
+    )
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [
+        {
+            "subject": row[0],
+            "attendance": row[1],
+            "grade": row[2]
+        }
+        for row in rows
+    ]
+
+
+@app.get("/students/{student_id}/subjects")
+def get_student_subjects(student_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT subject_name, attendance, grade
+        FROM subjects
+        WHERE student_id = ?
+    """, (student_id,))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return [
+        {
+            "subject": row[0],
+            "attendance": row[1],
+            "grade": row[2]
+        }
+        for row in rows
+    ]
+
+
+@app.post("/students/{student_id}/subjects")
+def add_student_subjects(student_id: int, subjects: List[Subject]):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    for sub in subjects:
+        cursor.execute("""
+            INSERT INTO subjects (student_id, subject_name, attendance, grade)
+            VALUES (?, ?, ?, ?)
+        """, (student_id, sub.subject_name, sub.attendance, sub.grade))
+
+    conn.commit()
+    conn.close()
+
+    return {"status": "Subjects added"}
